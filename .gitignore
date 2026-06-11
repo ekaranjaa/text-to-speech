@@ -1,0 +1,5 @@
+# Local config — keeps the real AUTH_SECRET and admin email out of git.
+.env
+
+# macOS
+.DS_Store

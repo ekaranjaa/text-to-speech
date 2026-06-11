@@ -1,0 +1,47 @@
+services:
+  # Kokoro-FastAPI — open-source TTS engine, OpenAI-compatible API
+  # Settings copied from the OpenReader Kokoro guide (CPU profile).
+  kokoro-tts:
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:v0.2.4
+    container_name: kokoro-tts
+    ports:
+      - "8880:8880"
+    environment:
+      - ONNX_NUM_THREADS=8
+      - ONNX_INTER_OP_THREADS=4
+      - ONNX_EXECUTION_MODE=parallel
+      - ONNX_OPTIMIZATION_LEVEL=all
+      - ONNX_MEMORY_PATTERN=true
+      - ONNX_ARENA_EXTEND_STRATEGY=kNextPowerOfTwo
+      - API_LOG_LEVEL=DEBUG
+    restart: unless-stopped
+
+  # OpenReader — reader UI + TTS orchestrator
+  # Mirrors the docs' "Localhost" docker run example, adapted for Compose.
+  openreader:
+    image: ghcr.io/richardr1126/openreader:latest
+    container_name: openreader
+    ports:
+      - "3003:3003" # Web UI / API
+      - "8333:8333" # Embedded SeaweedFS S3 (required by docs)
+    environment:
+      # --- TTS provider (first-boot seed into an admin "default-openai" provider) ---
+      - API_BASE=http://kokoro-tts:8880/v1
+      - API_KEY=none
+
+      # --- Auth (full sign-in mode) ---
+      # BASE_URL must match how users reach the app in their browser.
+      - BASE_URL=http://localhost:3003
+      # Replace with a real secret: openssl rand -hex 32
+      - AUTH_SECRET=changeme-generate-with-openssl-rand-hex-32
+      # Replace with your email. First user matching this list becomes admin.
+      - ADMIN_EMAILS=you@example.com
+    volumes:
+      # Persists SeaweedFS blob data, SQLite metadata, migrations, runtime temp state.
+      - openreader_docstore:/app/docstore
+    depends_on:
+      - kokoro-tts
+    restart: unless-stopped
+
+volumes:
+  openreader_docstore:
