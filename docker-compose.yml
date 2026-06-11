@@ -5,7 +5,7 @@ services:
     image: ghcr.io/remsky/kokoro-fastapi-cpu:v0.2.4
     container_name: kokoro-tts
     ports:
-      - "8880:8880"
+      - "${KOKORO_PORT:-8880}:8880"
     environment:
       - ONNX_NUM_THREADS=8
       - ONNX_INTER_OP_THREADS=4
@@ -22,20 +22,23 @@ services:
     image: ghcr.io/richardr1126/openreader:latest
     container_name: openreader
     ports:
-      - "3003:3003" # Web UI / API
+      - "${OPENREADER_PORT:-3003}:3003" # Web UI / API
       - "8333:8333" # Embedded SeaweedFS S3 (required by docs)
     environment:
       # --- TTS provider (first-boot seed into an admin "default-openai" provider) ---
       - API_BASE=http://kokoro-tts:8880/v1
       - API_KEY=none
 
-      # --- Auth (full sign-in mode) ---
+      # --- Auth (no login required) ---
+      # OpenReader v4+ cannot disable auth entirely (BASE_URL + AUTH_SECRET are
+      # mandatory), but anonymous sessions let users reach /app without signing
+      # in or creating an account. Docs: https://docs.openreader.richardr.dev/configure/auth
+      - USE_ANONYMOUS_AUTH_SESSIONS=true
       # BASE_URL must match how users reach the app in their browser.
-      - BASE_URL=http://localhost:3003
-      # Replace with a real secret: openssl rand -hex 32
-      - AUTH_SECRET=changeme-generate-with-openssl-rand-hex-32
-      # Replace with your email. First user matching this list becomes admin.
-      - ADMIN_EMAILS=you@example.com
+      - BASE_URL=${BASE_URL:-http://localhost:3003}
+      - AUTH_SECRET=${AUTH_SECRET:?set AUTH_SECRET in .env (openssl rand -hex 32)}
+      # Admin owns the shared TTS provider anonymous users rely on.
+      - ADMIN_EMAILS=${ADMIN_EMAILS}
     volumes:
       # Persists SeaweedFS blob data, SQLite metadata, migrations, runtime temp state.
       - openreader_docstore:/app/docstore
